@@ -6,8 +6,11 @@ A program for automating keyboard and mouse clicks in games with support for ful
 
 ## Features
 
-1. **Spam** - automatically presses left mouse button, space and key 1 every 10 ms
-2. **LMB** - automatically presses only the left mouse button every 10 ms
+1. **Spam** - automatically performs a sequence of actions in order:
+   - Press Space → Wait 10ms → Release Space → Wait 10ms
+   - Press 1 → Wait 10ms → Release 1 → Wait 10ms
+   - Press LMB → Wait 10ms → Release LMB → Wait 10ms
+2. **LMB** - automatically presses and releases left mouse button with 10ms delays
 3. **Customizable binds** - ability to assign keys to enable/disable functions
 4. **Enable/Disable** - ability to quickly turn the entire program on/off without closing it
 5. **Desktop interface** - opens on your desktop, not in the game itself

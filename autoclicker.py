@@ -75,7 +75,7 @@ class AutoClicker:
         
         ttk.Separator(self.root, orient='horizontal').pack(fill='x', padx=10, pady=5)
         
-        spam_frame = ttk.LabelFrame(self.root, text="Spam (LMB + Space + 1)")
+        spam_frame = ttk.LabelFrame(self.root, text="Spam (Space + 1 + LMB)")
         spam_frame.pack(fill="x", padx=10, pady=10)
         self.spam_button = ttk.Button(spam_frame, text="Enable", command=self.toggle_spam)
         self.spam_button.pack(side="left", padx=10, pady=10)
@@ -127,22 +127,52 @@ class AutoClicker:
         lmb_thread.start()
     
     def spam_function(self):
+        """Функция для спама с последовательным нажатием и отпусканием клавиш"""
         while True:
             if self.spam_active and self.program_enabled:
-                self.mouse.press(Button.left)
-                self.mouse.release(Button.left)
+                # 1. Нажать Space
                 self.keyboard.press(Key.space)
+                # 2. Ожидать 10 мс
+                time.sleep(0.01)
+                # 3. Отпустить Space
                 self.keyboard.release(Key.space)
+                # 4. Ожидать 10 мс
+                time.sleep(0.01)
+                
+                # 5. Нажать 1
                 self.keyboard.press('1')
+                # 6. Ожидать 10 мс
+                time.sleep(0.01)
+                # 7. Отпустить 1
                 self.keyboard.release('1')
-            time.sleep(0.01)
+                # 8. Ожидать 10 мс
+                time.sleep(0.01)
+                
+                # 9. Нажать левую клавишу мыши
+                self.mouse.press(Button.left)
+                # 10. Ожидать 10 мс
+                time.sleep(0.01)
+                # 11. Отпустить левую клавишу мыши
+                self.mouse.release(Button.left)
+                # 12. Ожидать 10 мс
+                time.sleep(0.01)
+            else:
+                time.sleep(0.01)
     
     def lmb_function(self):
+        """Функция для автоклика ЛКМ"""
         while True:
             if self.lmb_active and self.program_enabled:
+                # Нажать левую кнопку мыши
                 self.mouse.press(Button.left)
+                # Ожидать 10 мс
+                time.sleep(0.01)
+                # Отпустить левую кнопку мыши
                 self.mouse.release(Button.left)
-            time.sleep(0.01)
+                # Ожидать 10 мс
+                time.sleep(0.01)
+            else:
+                time.sleep(0.01)
     
     def toggle_program(self):
         self.program_enabled = not self.program_enabled
