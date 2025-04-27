@@ -9,12 +9,20 @@ A program for automating keyboard and mouse clicks in games with support for ful
 1. **Spam** - automatically presses left mouse button, space and key 1 every 10 ms
 2. **LMB** - automatically presses only the left mouse button every 10 ms
 3. **Customizable binds** - ability to assign keys to enable/disable functions
-4. **Fullscreen menu** - open/close menu by pressing the Insert key
+4. **Enable/Disable** - ability to quickly turn the entire program on/off without closing it
+5. **Desktop interface** - opens on your desktop, not in the game itself
+
+## How It Works
+
+The program runs on your desktop and sends keyboard and mouse inputs to any active window, including games running in fullscreen mode. It doesn't modify game files or inject into game processes, making it safer to use from an anti-cheat perspective.
+
+When you press the **Delete** key, the interface appears on your desktop, allowing you to configure settings while the game is minimized or on another monitor.
 
 ## Requirements
 
 - Python 3.7 or higher
-- Libraries: pyautogui, keyboard, pillow
+- Libraries: pyautogui, pynput, pillow
+- Administrator privileges (for global keyboard hooks)
 
 ## Installation and Launch
 
@@ -58,19 +66,23 @@ pyinstaller --onefile --windowed --icon=icon.png autoclicker.py
 ## Usage
 
 1. Launch the program (EXE file or Python script)
-2. The menu is hidden at startup, press **Delete** to show/hide
-3. Use the buttons in the interface to enable/disable functions or set up hotkeys
-4. Default hotkeys:
+2. The program starts in active mode but with the menu hidden
+3. Control the program using hotkeys:
    - **Delete** - show/hide menu
-   - **F1** - enable/disable Spam function
-   - **F2** - enable/disable LMB function
+   - **F1** - enable/disable Spam function (can be rebound)
+   - **F2** - enable/disable LMB function (can be rebound)
+4. To configure the program, press **Delete** to show the menu
+5. Use the "Enable Program" / "Disable Program" button to quickly enable or disable all functions
+6. Change key bindings by clicking the "Change" button next to each function
 
 ## Important to Know
 
-- Administrator rights may be required for the keyboard library to work
-- The auto-clicker works on top of all windows, including fullscreen games
+- The program requires administrator rights to work with keyboard hooks
+- The program runs on your desktop, not inside the game - this helps avoid some anti-cheat detections
+- To use with games, launch both the game and the AutoClicker, then switch to the game
 - Functions work even with the menu hidden
-- Configured binds only work during the current session (not saved)
+- When the game is in fullscreen, you'll need to alt-tab to your desktop to see the menu
+- The status in the menu shows whether the program is currently active or disabled
 
 ## Warning
 
