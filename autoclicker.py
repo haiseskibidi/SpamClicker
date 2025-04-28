@@ -199,10 +199,10 @@ class AutoClicker:
         author_label.pack(side="right")
         
         program_frame = NeumorphicFrame(content_frame, fg_color=colors['bg'])
-        program_frame.pack(fill="x", pady=(0, 20))
+        program_frame.pack(fill="x", pady=(0, 10))
         
         program_container = ctk.CTkFrame(program_frame.container, fg_color="transparent")
-        program_container.pack(fill="x", padx=15, pady=15)
+        program_container.pack(fill="x", padx=15)
         
         program_label = ctk.CTkLabel(
             program_container,
