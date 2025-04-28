@@ -1,8 +1,17 @@
 # AutoClicker for Games
 
-A program for automating keyboard and mouse clicks in games with support for fullscreen mode. Written in Python using PyAutoGUI and tkinter.
+A program for automating keyboard and mouse clicks in games with support for fullscreen mode. Written in Python using CustomTkinter.
 
 ![Icon](icon.png)
+
+## What's New in Version 2.0
+
+### Major Update!
+
+- **Completely redesigned interface** - modern neumorphic UI built with CustomTkinter
+- **Custom sequence feature** - create your own key/mouse button sequences with custom delays
+- **Enhanced hotkey binding** - easily change function hotkeys through the interface
+- **Improved performance** - optimized for lower CPU usage and better reliability
 
 ## Features
 
@@ -10,21 +19,16 @@ A program for automating keyboard and mouse clicks in games with support for ful
    - Press Space → Wait 10ms → Release Space → Wait 10ms
    - Press 1 → Wait 10ms → Release 1 → Wait 10ms
    - Press LMB → Wait 10ms → Release LMB → Wait 10ms
+   - **For skipping dialogues in Honkai: Star Rail**
 2. **LMB** - automatically presses and releases left mouse button with 10ms delays
-3. **Customizable binds** - ability to assign keys to enable/disable functions
-4. **Enable/Disable** - ability to quickly turn the entire program on/off without closing it
-5. **Desktop interface** - opens on your desktop, not in the game itself
-
-## How It Works
-
-The program runs on your desktop and sends keyboard and mouse inputs to any active window, including games running in fullscreen mode. It doesn't modify game files or inject into game processes, making it safer to use from an anti-cheat perspective.
-
-When you press the **Delete** key, the interface appears on your desktop, allowing you to configure settings while the game is minimized or on another monitor.
+3. **Custom Sequence** - create your own sequence of keyboard and mouse actions with custom delays
+4. **Customizable binds** - ability to assign keys to enable/disable functions
+5. **Enable/Disable** - ability to quickly turn the entire program on/off without closing it
 
 ## Requirements
 
 - Python 3.7 or higher
-- Libraries: pyautogui, pynput, pillow
+- Libraries: customtkinter, pyautogui, pynput, pillow
 - Administrator privileges (for global keyboard hooks)
 
 ## Installation and Launch
@@ -74,18 +78,18 @@ pyinstaller --onefile --windowed --icon=icon.png autoclicker.py
    - **Delete** - show/hide menu
    - **F1** - enable/disable Spam function (can be rebound)
    - **F2** - enable/disable LMB function (can be rebound)
+   - **F3** - enable/disable Custom Sequence function (can be rebound)
 4. To configure the program, press **Delete** to show the menu
 5. Use the "Enable Program" / "Disable Program" button to quickly enable or disable all functions
 6. Change key bindings by clicking the "Change" button next to each function
+7. Configure custom sequences by clicking the "Configure Sequence" button
 
 ## Important to Know
 
 - The program requires administrator rights to work with keyboard hooks
-- The program runs on your desktop, not inside the game - this helps avoid some anti-cheat detections
-- To use with games, launch both the game and the AutoClicker, then switch to the game
 - Functions work even with the menu hidden
-- When the game is in fullscreen, you'll need to alt-tab to your desktop to see the menu
 - The status in the menu shows whether the program is currently active or disabled
+- Custom sequences can be very powerful - experiment with different combinations!
 
 ## Warning
 
@@ -97,4 +101,4 @@ MIT
 
 ## Author
 
-Your Name 
+zaaaa
