@@ -4,6 +4,8 @@ import threading
 import ctypes
 import pyautogui
 import customtkinter as ctk
+import json
+import os
 from pynput import keyboard as kb
 from pynput.mouse import Button, Controller as MouseController
 from pynput.keyboard import Key, Controller as KeyboardController
@@ -846,11 +848,10 @@ class AutoClicker:
                 self.spam_key = key
                 self.spam_key_str = self.key_to_string(key)
                 self.spam_bind_label.configure(text=self.spam_key_str)
-                indicator.configure(
-                    text=f"Key successfully assigned: {self.spam_key_str}", 
-                    text_color=colors['success']
-                )
-                dialog.after(800, lambda: self.finish_key_binding(dialog))
+                # Сохраняем настройки после изменения бинда
+                self.save_settings()
+                # Закрываем диалог без задержки
+                self.finish_key_binding(dialog)
             else:
                 indicator.configure(
                     text="Cancelled", 
@@ -874,11 +875,10 @@ class AutoClicker:
                 self.lmb_key = key
                 self.lmb_key_str = self.key_to_string(key)
                 self.lmb_bind_label.configure(text=self.lmb_key_str)
-                indicator.configure(
-                    text=f"Key successfully assigned: {self.lmb_key_str}", 
-                    text_color=colors['success']
-                )
-                dialog.after(800, lambda: self.finish_key_binding(dialog))
+                # Сохраняем настройки после изменения бинда
+                self.save_settings()
+                # Закрываем диалог без задержки
+                self.finish_key_binding(dialog)
             else:
                 indicator.configure(
                     text="Cancelled", 
@@ -916,11 +916,13 @@ class AutoClicker:
             'delay': delay
         }
         self.custom_sequence.append(key_entry)
+        self.save_settings()
         return len(self.custom_sequence) - 1
     
     def remove_custom_key(self, index):
         if 0 <= index < len(self.custom_sequence):
             del self.custom_sequence[index]
+            self.save_settings()
             return True
         return False
     
@@ -932,6 +934,7 @@ class AutoClicker:
                 self.custom_sequence[index]['key'] = key
             if delay is not None:
                 self.custom_sequence[index]['delay'] = delay
+            self.save_settings()
             return True
         return False
     
@@ -947,11 +950,10 @@ class AutoClicker:
                 self.custom_key = key
                 self.custom_key_str = self.key_to_string(key)
                 self.custom_bind_label.configure(text=self.custom_key_str)
-                indicator.configure(
-                    text=f"Key successfully assigned: {self.custom_key_str}", 
-                    text_color=colors['success']
-                )
-                dialog.after(800, lambda: self.finish_key_binding(dialog))
+                # Сохраняем настройки после изменения бинда
+                self.save_settings()
+                # Закрываем диалог без задержки
+                self.finish_key_binding(dialog)
             else:
                 indicator.configure(
                     text="Cancelled", 
@@ -1626,8 +1628,108 @@ class AutoClicker:
                     error_label.pack(pady=5)
                     dialog.after(2000, error_label.destroy)
     
+    def get_config_path(self):
+        """Получает путь к файлу конфигурации."""
+        app_dir = os.path.dirname(os.path.abspath(__file__))
+        return os.path.join(app_dir, 'autoclicker_config.json')
+    
+    def save_settings(self):
+        """Сохраняет настройки в JSON-файл."""
+        config = {
+            'spam_key': self.key_to_string(self.spam_key),
+            'lmb_key': self.key_to_string(self.lmb_key),
+            'custom_key': self.key_to_string(self.custom_key),
+            'custom_sequence': []
+        }
+        
+        # Сохраняем кастомную последовательность
+        for entry in self.custom_sequence:
+            key_entry = {
+                'key_type': entry['key_type'],
+                'key': self.key_to_string(entry['key']),
+                'delay': entry['delay']
+            }
+            config['custom_sequence'].append(key_entry)
+        
+        try:
+            with open(self.get_config_path(), 'w', encoding='utf-8') as f:
+                json.dump(config, f, indent=4)
+        except Exception as e:
+            print(f"Ошибка при сохранении настроек: {e}")
+    
+    def load_settings(self):
+        """Загружает настройки из JSON-файла."""
+        config_path = self.get_config_path()
+        if not os.path.exists(config_path):
+            return
+        
+        try:
+            with open(config_path, 'r', encoding='utf-8') as f:
+                config = json.load(f)
+            
+            # Загружаем настройки клавиш
+            if 'spam_key' in config:
+                self.spam_key = self.string_to_key(config['spam_key'])
+                self.spam_key_str = config['spam_key']
+            
+            if 'lmb_key' in config:
+                self.lmb_key = self.string_to_key(config['lmb_key'])
+                self.lmb_key_str = config['lmb_key']
+            
+            if 'custom_key' in config:
+                self.custom_key = self.string_to_key(config['custom_key'])
+                self.custom_key_str = config['custom_key']
+            
+            # Загружаем кастомную последовательность
+            if 'custom_sequence' in config:
+                self.custom_sequence = []
+                for entry in config['custom_sequence']:
+                    key_entry = {
+                        'key_type': entry['key_type'],
+                        'key': self.string_to_key(entry['key']),
+                        'delay': entry['delay']
+                    }
+                    self.custom_sequence.append(key_entry)
+        except Exception as e:
+            print(f"Ошибка при загрузке настроек: {e}")
+    
+    def string_to_key(self, key_str):
+        """Преобразует строковое представление клавиши в объект Key."""
+        # Обработка специальных клавиш
+        special_keys = {
+            'F1': Key.f1, 'F2': Key.f2, 'F3': Key.f3, 'F4': Key.f4, 'F5': Key.f5,
+            'F6': Key.f6, 'F7': Key.f7, 'F8': Key.f8, 'F9': Key.f9, 'F10': Key.f10,
+            'F11': Key.f11, 'F12': Key.f12, 'ESC': Key.esc, 'ENTER': Key.enter,
+            'SPACE': Key.space, 'TAB': Key.tab, 'DELETE': Key.delete,
+            'HOME': Key.home, 'END': Key.end, 'PAGE UP': Key.page_up,
+            'PAGE DOWN': Key.page_down, 'INSERT': Key.insert,
+            'LEFT': Key.left, 'RIGHT': Key.right, 'UP': Key.up, 'DOWN': Key.down,
+            'BACKSPACE': Key.backspace, 'CAPS LOCK': Key.caps_lock,
+            'PRINT SCREEN': Key.print_screen, 'SCROLL LOCK': Key.scroll_lock,
+            'PAUSE': Key.pause, 'NUM LOCK': Key.num_lock,
+            'LEFT MOUSE BUTTON': Button.left, 'RIGHT MOUSE BUTTON': Button.right,
+            'MIDDLE MOUSE BUTTON': Button.middle
+        }
+        
+        if key_str in special_keys:
+            return special_keys[key_str]
+        
+        # Обработка обычных символов
+        if len(key_str) == 1:
+            return kb.KeyCode.from_char(key_str.lower())
+        
+        return Key.f3  # По умолчанию возвращаем F3, если не удалось распознать
+    
     def run(self):
         try:
+            # Загружаем настройки перед запуском приложения
+            self.load_settings()
+            
+            # Обновляем метки на интерфейсе с загруженными настройками
+            self.spam_bind_label.configure(text=self.spam_key_str)
+            self.lmb_bind_label.configure(text=self.lmb_key_str)
+            self.custom_bind_label.configure(text=self.custom_key_str)
+            
             self.root.mainloop()
         except Exception as e:
             print(f"Error: {e}")

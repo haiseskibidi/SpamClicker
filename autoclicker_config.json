@@ -1,0 +1,12 @@
+{
+    "spam_key": "CAPS_LOCK",
+    "lmb_key": "F2",
+    "custom_key": "F3",
+    "custom_sequence": [
+        {
+            "key_type": "keyboard",
+            "key": "K",
+            "delay": 10
+        }
+    ]
+}
