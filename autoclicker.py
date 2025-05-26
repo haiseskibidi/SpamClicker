@@ -1,14 +1,29 @@
 import sys
+import os
 import time
 import threading
 import ctypes
-import pyautogui
-import customtkinter as ctk
 import json
-import os
-from pynput import keyboard as kb
-from pynput.mouse import Button, Controller as MouseController
-from pynput.keyboard import Key, Controller as KeyboardController
+import customtkinter as ctk
+
+pyautogui = None
+kb = None
+Button = None
+MouseController = None
+KeyboardController = None
+Key = None
+
+def lazy_import():
+    global pyautogui, kb, Button, MouseController, KeyboardController, Key
+    if pyautogui is None:
+        import pyautogui
+        pyautogui.FAILSAFE = False
+    if kb is None:
+        from pynput import keyboard as kb
+    if Button is None or MouseController is None:
+        from pynput.mouse import Button, Controller as MouseController
+    if Key is None or KeyboardController is None:
+        from pynput.keyboard import Key, Controller as KeyboardController
 
 def is_admin():
     try:
@@ -17,10 +32,12 @@ def is_admin():
         return False
 
 def run_as_admin():
+    if not sys.platform.startswith('win'):
+        return
+        
     if not is_admin():
         ctypes.windll.shell32.ShellExecuteW(None, "runas", sys.executable, " ".join(sys.argv), None, 1)
         sys.exit(0)
-pyautogui.FAILSAFE = False
 
 class NeumorphicFrame(ctk.CTkFrame):
     def __init__(self, master, **kwargs):
@@ -95,6 +112,8 @@ class NeumorphicButton(ctk.CTkButton):
 
 class AutoClicker:
     def __init__(self):
+        lazy_import()
+        
         self.keyboard = KeyboardController()
         self.mouse = MouseController()
         self.spam_active = False
@@ -848,9 +867,7 @@ class AutoClicker:
                 self.spam_key = key
                 self.spam_key_str = self.key_to_string(key)
                 self.spam_bind_label.configure(text=self.spam_key_str)
-                # Сохраняем настройки после изменения бинда
                 self.save_settings()
-                # Закрываем диалог без задержки
                 self.finish_key_binding(dialog)
             else:
                 indicator.configure(
@@ -875,9 +892,7 @@ class AutoClicker:
                 self.lmb_key = key
                 self.lmb_key_str = self.key_to_string(key)
                 self.lmb_bind_label.configure(text=self.lmb_key_str)
-                # Сохраняем настройки после изменения бинда
                 self.save_settings()
-                # Закрываем диалог без задержки
                 self.finish_key_binding(dialog)
             else:
                 indicator.configure(
@@ -950,9 +965,7 @@ class AutoClicker:
                 self.custom_key = key
                 self.custom_key_str = self.key_to_string(key)
                 self.custom_bind_label.configure(text=self.custom_key_str)
-                # Сохраняем настройки после изменения бинда
                 self.save_settings()
-                # Закрываем диалог без задержки
                 self.finish_key_binding(dialog)
             else:
                 indicator.configure(
@@ -1629,12 +1642,19 @@ class AutoClicker:
                     dialog.after(2000, error_label.destroy)
     
     def get_config_path(self):
-        """Получает путь к файлу конфигурации."""
-        app_dir = os.path.dirname(os.path.abspath(__file__))
+        if getattr(sys, 'frozen', False):
+            if sys.platform.startswith('win'):
+                app_dir = os.path.join(os.environ['APPDATA'], 'AutoClickerPy')
+            else:
+                app_dir = os.path.join(os.path.expanduser('~'), '.autoclickerpy')
+        else:
+            app_dir = os.path.dirname(os.path.abspath(__file__))
+        
+        os.makedirs(app_dir, exist_ok=True)
+        
         return os.path.join(app_dir, 'autoclicker_config.json')
     
     def save_settings(self):
-        """Сохраняет настройки в JSON-файл."""
         config = {
             'spam_key': self.key_to_string(self.spam_key),
             'lmb_key': self.key_to_string(self.lmb_key),
@@ -1642,7 +1662,6 @@ class AutoClicker:
             'custom_sequence': []
         }
         
-        # Сохраняем кастомную последовательность
         for entry in self.custom_sequence:
             key_entry = {
                 'key_type': entry['key_type'],
@@ -1658,7 +1677,6 @@ class AutoClicker:
             print(f"Ошибка при сохранении настроек: {e}")
     
     def load_settings(self):
-        """Загружает настройки из JSON-файла."""
         config_path = self.get_config_path()
         if not os.path.exists(config_path):
             return
@@ -1667,7 +1685,6 @@ class AutoClicker:
             with open(config_path, 'r', encoding='utf-8') as f:
                 config = json.load(f)
             
-            # Загружаем настройки клавиш
             if 'spam_key' in config:
                 self.spam_key = self.string_to_key(config['spam_key'])
                 self.spam_key_str = config['spam_key']
@@ -1680,7 +1697,6 @@ class AutoClicker:
                 self.custom_key = self.string_to_key(config['custom_key'])
                 self.custom_key_str = config['custom_key']
             
-            # Загружаем кастомную последовательность
             if 'custom_sequence' in config:
                 self.custom_sequence = []
                 for entry in config['custom_sequence']:
@@ -1694,8 +1710,6 @@ class AutoClicker:
             print(f"Ошибка при загрузке настроек: {e}")
     
     def string_to_key(self, key_str):
-        """Преобразует строковое представление клавиши в объект Key."""
-        # Обработка специальных клавиш
         special_keys = {
             'F1': Key.f1, 'F2': Key.f2, 'F3': Key.f3, 'F4': Key.f4, 'F5': Key.f5,
             'F6': Key.f6, 'F7': Key.f7, 'F8': Key.f8, 'F9': Key.f9, 'F10': Key.f10,
@@ -1714,18 +1728,15 @@ class AutoClicker:
         if key_str in special_keys:
             return special_keys[key_str]
         
-        # Обработка обычных символов
         if len(key_str) == 1:
             return kb.KeyCode.from_char(key_str.lower())
         
-        return Key.f3  # По умолчанию возвращаем F3, если не удалось распознать
+        return Key.f3
     
     def run(self):
         try:
-            # Загружаем настройки перед запуском приложения
             self.load_settings()
             
-            # Обновляем метки на интерфейсе с загруженными настройками
             self.spam_bind_label.configure(text=self.spam_key_str)
             self.lmb_bind_label.configure(text=self.lmb_key_str)
             self.custom_bind_label.configure(text=self.custom_key_str)
@@ -1740,6 +1751,7 @@ if __name__ == "__main__":
     try:
         if sys.platform.startswith('win'):
             run_as_admin()
+            
         app = AutoClicker()
         app.run()
     except Exception as e:
