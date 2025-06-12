@@ -1240,7 +1240,8 @@ class AutoClicker:
         dialog = ctk.CTkToplevel(parent)
         dialog.title("Add Key")
         dialog.geometry("400x320")
-        dialog.resizable(False, False)
+        dialog.minsize(400, 320)
+        dialog.resizable(True, True)
         dialog.attributes('-topmost', True)
         dialog.transient(parent)
         dialog.grab_set()
@@ -1254,10 +1255,13 @@ class AutoClicker:
         dialog.geometry('{}x{}+{}+{}'.format(width, height, x, y))
         
         dialog_frame = NeumorphicFrame(dialog, fg_color=colors['bg'])
-        dialog_frame.pack(fill="both", expand=True, padx=20, pady=20)
+        dialog_frame.pack(fill="both", expand=True, padx=15, pady=15)
         
-        dialog_container = ctk.CTkFrame(dialog_frame.container, fg_color="transparent")
-        dialog_container.pack(fill="both", expand=True, padx=10, pady=10)
+        dialog_scroll = ctk.CTkScrollableFrame(dialog_frame.container, fg_color="transparent")
+        dialog_scroll.pack(fill="both", expand=True, padx=10, pady=10)
+        
+        dialog_container = ctk.CTkFrame(dialog_scroll, fg_color="transparent")
+        dialog_container.pack(fill="both", expand=True)
         
         title_label = ctk.CTkLabel(
             dialog_container, 
@@ -1535,7 +1539,8 @@ class AutoClicker:
             dialog = ctk.CTkToplevel(parent)
             dialog.title("Edit Key")
             dialog.geometry("400x300")
-            dialog.resizable(False, False)
+            dialog.minsize(400, 300)
+            dialog.resizable(True, True)
             dialog.attributes('-topmost', True)
             dialog.transient(parent)
             dialog.grab_set()
@@ -1549,10 +1554,13 @@ class AutoClicker:
             dialog.geometry('{}x{}+{}+{}'.format(width, height, x, y))
             
             dialog_frame = NeumorphicFrame(dialog, fg_color=colors['bg'])
-            dialog_frame.pack(fill="both", expand=True, padx=20, pady=20)
+            dialog_frame.pack(fill="both", expand=True, padx=15, pady=15)
             
-            dialog_container = ctk.CTkFrame(dialog_frame.container, fg_color="transparent")
-            dialog_container.pack(fill="both", expand=True, padx=10, pady=10)
+            dialog_scroll = ctk.CTkScrollableFrame(dialog_frame.container, fg_color="transparent")
+            dialog_scroll.pack(fill="both", expand=True, padx=10, pady=10)
+            
+            dialog_container = ctk.CTkFrame(dialog_scroll, fg_color="transparent")
+            dialog_container.pack(fill="both", expand=True)
             
             title_label = ctk.CTkLabel(
                 dialog_container, 
