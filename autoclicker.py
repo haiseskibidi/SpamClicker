@@ -141,7 +141,8 @@ class AutoClicker:
         self.root = ctk.CTk()
         self.root.title("AutoClicker")
         self.root.geometry("500x750")
-        self.root.resizable(False, False)
+        self.root.minsize(500, 750)
+        self.root.resizable(True, True)
         self.root.attributes('-topmost', True)
         self.root.attributes('-alpha', 1.0)
         
@@ -183,8 +184,11 @@ class AutoClicker:
         main_frame = ctk.CTkFrame(self.root, fg_color=colors['bg'], corner_radius=0)
         main_frame.pack(fill="both", expand=True)
         
-        content_frame = ctk.CTkFrame(main_frame, fg_color=colors['bg'], corner_radius=0)
-        content_frame.pack(fill="both", expand=True, padx=25, pady=25)
+        content_scroll = ctk.CTkScrollableFrame(main_frame, fg_color=colors['bg'], corner_radius=0)
+        content_scroll.pack(fill="both", expand=True, padx=10, pady=10)
+        
+        content_frame = ctk.CTkFrame(content_scroll, fg_color=colors['bg'], corner_radius=0)
+        content_frame.pack(fill="both", expand=True, padx=15, pady=15)
         
         header_frame = NeumorphicFrame(content_frame, fg_color=colors['bg'])
         header_frame.pack(fill="x", pady=(0, 20))
@@ -634,18 +638,34 @@ class AutoClicker:
     def setup_keyboard_listener(self):
         def on_press(key):
             try:
-                if key == self.menu_key:
+                # Преобразуем key в более надежную форму для сравнения
+                if isinstance(key, kb.Key) and key == kb.Key.caps_lock:
+                    compare_key = kb.Key.caps_lock
+                elif hasattr(key, '_name_') and key._name_ == self.spam_key._name_:
+                    compare_key = key
+                else:
+                    compare_key = key
+                    
+                if compare_key == self.menu_key:
                     self.toggle_menu()
                 
                 if self.program_enabled:
-                    if key == self.spam_key:
+                    # Сравнение для специальных клавиш
+                    if isinstance(key, kb.Key) and isinstance(self.spam_key, kb.Key) and key._name_ == self.spam_key._name_:
+                        self.toggle_spam()
+                    elif isinstance(key, kb.Key) and isinstance(self.lmb_key, kb.Key) and key._name_ == self.lmb_key._name_:
+                        self.toggle_lmb()
+                    elif isinstance(key, kb.Key) and isinstance(self.custom_key, kb.Key) and key._name_ == self.custom_key._name_:
+                        self.toggle_custom()
+                    # Обычное сравнение для других клавиш
+                    elif key == self.spam_key:
                         self.toggle_spam()
                     elif key == self.lmb_key:
                         self.toggle_lmb()
                     elif key == self.custom_key:
                         self.toggle_custom()
-            except:
-                pass
+            except Exception as e:
+                print(f"Error in keyboard listener: {e}")
             return True
         
         self.keyboard_listener = kb.Listener(on_press=on_press)
@@ -786,6 +806,8 @@ class AutoClicker:
     
     def key_to_string(self, key):
         if hasattr(key, '_name_'):
+            # Преобразуем имя специальной клавиши в верхний регистр
+            # и заменяем подчеркивания на пробелы для удобочитаемости
             return key._name_.upper()
         else:
             return key.char.upper()
@@ -986,7 +1008,8 @@ class AutoClicker:
         settings_window = ctk.CTkToplevel(self.root)
         settings_window.title("Sequence Configuration")
         settings_window.geometry("600x540")
-        settings_window.resizable(False, False)
+        settings_window.minsize(600, 540)
+        settings_window.resizable(True, True)
         settings_window.attributes('-topmost', True)
         settings_window.transient(self.root)
         settings_window.grab_set()
@@ -999,8 +1022,11 @@ class AutoClicker:
         y = (settings_window.winfo_screenheight() // 2) - (height // 2)
         settings_window.geometry('{}x{}+{}+{}'.format(width, height, x, y))
         
-        main_frame = NeumorphicFrame(settings_window, fg_color=colors['bg'])
-        main_frame.pack(fill="both", expand=True, padx=20, pady=20)
+        main_scroll = ctk.CTkScrollableFrame(settings_window, fg_color=colors['bg'])
+        main_scroll.pack(fill="both", expand=True, padx=10, pady=10)
+        
+        main_frame = NeumorphicFrame(main_scroll, fg_color=colors['bg'])
+        main_frame.pack(fill="both", expand=True, padx=10, pady=10)
         
         main_container = ctk.CTkFrame(main_frame.container, fg_color="transparent")
         main_container.pack(fill="both", expand=True, padx=15, pady=15)
@@ -1715,18 +1741,29 @@ class AutoClicker:
             'F6': Key.f6, 'F7': Key.f7, 'F8': Key.f8, 'F9': Key.f9, 'F10': Key.f10,
             'F11': Key.f11, 'F12': Key.f12, 'ESC': Key.esc, 'ENTER': Key.enter,
             'SPACE': Key.space, 'TAB': Key.tab, 'DELETE': Key.delete,
-            'HOME': Key.home, 'END': Key.end, 'PAGE UP': Key.page_up,
-            'PAGE DOWN': Key.page_down, 'INSERT': Key.insert,
+            'HOME': Key.home, 'END': Key.end, 'PAGE_UP': Key.page_up,
+            'PAGE_DOWN': Key.page_down, 'INSERT': Key.insert,
             'LEFT': Key.left, 'RIGHT': Key.right, 'UP': Key.up, 'DOWN': Key.down,
-            'BACKSPACE': Key.backspace, 'CAPS LOCK': Key.caps_lock,
-            'PRINT SCREEN': Key.print_screen, 'SCROLL LOCK': Key.scroll_lock,
-            'PAUSE': Key.pause, 'NUM LOCK': Key.num_lock,
+            'BACKSPACE': Key.backspace, 'CAPS_LOCK': Key.caps_lock,
+            'PRINT_SCREEN': Key.print_screen, 'SCROLL_LOCK': Key.scroll_lock,
+            'PAUSE': Key.pause, 'NUM_LOCK': Key.num_lock,
             'LEFT MOUSE BUTTON': Button.left, 'RIGHT MOUSE BUTTON': Button.right,
             'MIDDLE MOUSE BUTTON': Button.middle
         }
         
         if key_str in special_keys:
             return special_keys[key_str]
+        
+        # Проверяем альтернативные имена (с подчеркиванием)
+        # Это нужно для правильной обработки ключей, сохраненных в разных форматах
+        key_str_alt = key_str.replace(' ', '_')
+        if key_str_alt in special_keys:
+            return special_keys[key_str_alt]
+            
+        # Проверяем альтернативные имена (без подчеркивания)
+        key_str_alt2 = key_str.replace('_', ' ')
+        if key_str_alt2 in special_keys:
+            return special_keys[key_str_alt2]
         
         if len(key_str) == 1:
             return kb.KeyCode.from_char(key_str.lower())
