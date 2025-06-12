@@ -65,7 +65,7 @@ pip install pyinstaller
 
 2. Create an EXE file:
 ```bash
-pyinstaller --onefile --windowed --icon=icon.png autoclicker.py
+pyinstaller --noconsole --icon=icon.png --noupx autoclicker.py 
 ```
 
 3. The finished file will be available in the `dist` folder
