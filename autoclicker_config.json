@@ -1,12 +1,55 @@
 {
     "spam_key": "CAPS_LOCK",
     "lmb_key": "F2",
-    "custom_key": "F3",
+    "custom_key": "F4",
     "custom_sequence": [
         {
+            "action": "press",
             "key_type": "keyboard",
-            "key": "K",
-            "delay": 10
+            "key": "W",
+            "duration": null
+        },
+        {
+            "action": "delay",
+            "key_type": null,
+            "key": null,
+            "duration": 500
+        },
+        {
+            "action": "press",
+            "key_type": "keyboard",
+            "key": "SPACE",
+            "duration": null
+        },
+        {
+            "action": "delay",
+            "key_type": null,
+            "key": null,
+            "duration": 400
+        },
+        {
+            "action": "release",
+            "key_type": "keyboard",
+            "key": "SPACE",
+            "duration": null
+        },
+        {
+            "action": "delay",
+            "key_type": null,
+            "key": null,
+            "duration": 300
+        },
+        {
+            "action": "release",
+            "key_type": "keyboard",
+            "key": "W",
+            "duration": null
+        },
+        {
+            "action": "delay",
+            "key_type": null,
+            "key": null,
+            "duration": 2000
         }
     ]
 }

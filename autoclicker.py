@@ -121,6 +121,8 @@ class AutoClicker:
         self.custom_active = False
         self.menu_visible = True
         self.program_enabled = True
+        self.pressed_keys_lock = threading.Lock()
+        self.currently_pressed_keys = set()
         
         self.custom_sequence = []
         self.custom_key = Key.f3
@@ -686,10 +688,6 @@ class AutoClicker:
     
     def click_function(self):
         while not self.stop_event.is_set():
-            if not self.program_enabled:
-                time.sleep(0.01)
-                continue
-                
             if self.spam_active:
                 self.keyboard.press(Key.space)
                 time.sleep(0.01)
@@ -705,7 +703,7 @@ class AutoClicker:
                 time.sleep(0.01)
                 self.mouse.release(Button.left)
                 time.sleep(0.01)
-            
+
             elif self.lmb_active:
                 self.mouse.press(Button.left)
                 time.sleep(0.01)
@@ -713,21 +711,41 @@ class AutoClicker:
                 time.sleep(0.01)
                 
             elif self.custom_active and self.custom_sequence:
-                for key_entry in self.custom_sequence:
-                    key_type = key_entry['key_type']
-                    key = key_entry['key']
-                    delay = key_entry['delay'] / 1000
+                for event in self.custom_sequence:
+                    if not self.custom_active:
+                        break
+
+                    action = event.get('action')
+
+                    if action == 'delay':
+                        duration = event.get('duration', 10) / 1000
+                        time.sleep(duration)
+                    elif action == 'press':
+                        key_type = event.get('key_type')
+                        key = event.get('key')
+                        if key:
+                            if key_type == 'keyboard':
+                                self.keyboard.press(key)
+                                with self.pressed_keys_lock:
+                                    self.currently_pressed_keys.add(('keyboard', key))
+                            elif key_type == 'mouse':
+                                self.mouse.press(key)
+                                with self.pressed_keys_lock:
+                                    self.currently_pressed_keys.add(('mouse', key))
+                    elif action == 'release':
+                        key_type = event.get('key_type')
+                        key = event.get('key')
+                        if key:
+                            if key_type == 'keyboard':
+                                self.keyboard.release(key)
+                                with self.pressed_keys_lock:
+                                    self.currently_pressed_keys.discard(('keyboard', key))
+                            elif key_type == 'mouse':
+                                self.mouse.release(key)
+                                with self.pressed_keys_lock:
+                                    self.currently_pressed_keys.discard(('mouse', key))
                     
-                    if key_type == 'keyboard':
-                        self.keyboard.press(key)
-                        time.sleep(0.01)
-                        self.keyboard.release(key)
-                    elif key_type == 'mouse':
-                        self.mouse.press(key)
-                        time.sleep(0.01)
-                        self.mouse.release(key)
-                    
-                    time.sleep(delay)
+                    time.sleep(0.01)
             else:
                 time.sleep(0.01)
     
@@ -778,21 +796,32 @@ class AutoClicker:
             if isinstance(self.custom_button, NeumorphicButton):
                 self.custom_button.set_active(False)
     
-    def toggle_spam(self):
-        self.spam_active = not self.spam_active
-        if self.spam_active:
-            self.lmb_active = False
+    def _set_active_function(self, function_to_activate=None):
+        # Deactivate all functions, releasing keys if necessary
+        if self.custom_active:
+            self.release_all_keys()
+        self.spam_active = False
+        self.lmb_active = False
+        self.custom_active = False
         
+        # Activate the new one
+        if function_to_activate == 'spam':
+            self.spam_active = True
+        elif function_to_activate == 'lmb':
+            self.lmb_active = True
+        elif function_to_activate == 'custom':
+            self.custom_active = True
+
         if self.menu_visible:
             self.update_button_states()
     
+    def toggle_spam(self):
+        new_function = None if self.spam_active else 'spam'
+        self._set_active_function(new_function)
+    
     def toggle_lmb(self):
-        self.lmb_active = not self.lmb_active
-        if self.lmb_active:
-            self.spam_active = False
-        
-        if self.menu_visible:
-            self.update_button_states()
+        new_function = None if self.lmb_active else 'lmb'
+        self._set_active_function(new_function)
     
     def toggle_menu(self):
         self.menu_visible = not self.menu_visible
@@ -804,11 +833,27 @@ class AutoClicker:
         else:
             self.root.withdraw()
     
+    def release_all_keys(self):
+        with self.pressed_keys_lock:
+            keys_to_release = list(self.currently_pressed_keys)
+            for key_type, key in keys_to_release:
+                try:
+                    if key_type == 'keyboard':
+                        self.keyboard.release(key)
+                    elif key_type == 'mouse':
+                        self.mouse.release(key)
+                except Exception:
+                    # Ignore errors, e.g., if key is already released
+                    pass
+            self.currently_pressed_keys.clear()
+    
     def key_to_string(self, key):
+        if key is None:
+            return None
         if hasattr(key, '_name_'):
-            # Преобразуем имя специальной клавиши в верхний регистр
-            # и заменяем подчеркивания на пробелы для удобочитаемости
             return key._name_.upper()
+        elif hasattr(key, 'name'):
+            return key.name.upper()
         else:
             return key.char.upper()
     
@@ -938,21 +983,11 @@ class AutoClicker:
         self.root.lift()
     
     def toggle_custom(self):
-        self.custom_active = not self.custom_active
-        if self.custom_active:
-            self.spam_active = False
-            self.lmb_active = False
-        
-        if self.menu_visible:
-            self.update_button_states()
+        new_function = None if self.custom_active else 'custom'
+        self._set_active_function(new_function)
     
-    def add_custom_key(self, key_type, key, delay=10):
-        key_entry = {
-            'key_type': key_type,
-            'key': key,
-            'delay': delay
-        }
-        self.custom_sequence.append(key_entry)
+    def add_custom_key(self, event_data):
+        self.custom_sequence.append(event_data)
         self.save_settings()
         return len(self.custom_sequence) - 1
     
@@ -963,14 +998,9 @@ class AutoClicker:
             return True
         return False
     
-    def update_custom_key(self, index, key_type=None, key=None, delay=None):
+    def update_custom_key(self, index, event_data):
         if 0 <= index < len(self.custom_sequence):
-            if key_type is not None:
-                self.custom_sequence[index]['key_type'] = key_type
-            if key is not None:
-                self.custom_sequence[index]['key'] = key
-            if delay is not None:
-                self.custom_sequence[index]['delay'] = delay
+            self.custom_sequence[index] = event_data
             self.save_settings()
             return True
         return False
@@ -1038,7 +1068,7 @@ class AutoClicker:
             text_color=colors['text']
         )
         title_label.pack(pady=(0, 15))
-        
+
         keys_frame = NeumorphicFrame(main_container, fg_color=colors['bg'])
         keys_frame.pack(fill="both", expand=True, pady=(0, 15))
         
@@ -1099,7 +1129,7 @@ class AutoClicker:
             fg_color=colors['surface'],
             text_color=colors['accent'],
             hover_color=colors['hover'],
-            command=lambda: self.add_key_dialog(settings_window, refresh_sequence)
+            command=lambda: self._show_event_dialog(settings_window, callback=refresh_sequence)
         )
         add_button.pack(side="left", padx=(0, 10))
         
@@ -1168,37 +1198,27 @@ class AutoClicker:
             text_color=colors['text']
         )
         number_label.pack(side="left")
-        
-        key_type = key_entry['key_type']
-        key_type_text = "Keyboard" if key_type == 'keyboard' else "Mouse"
-        key_type_label = ctk.CTkLabel(
+
+        action = key_entry.get('action', 'delay')
+        info_text = ""
+        if action == 'delay':
+            duration = key_entry.get('duration', 10)
+            info_text = f"Delay: {duration} ms"
+        else:
+            action_text = "Press" if action == 'press' else "Release"
+            key_type = key_entry.get('key_type', 'keyboard').capitalize()
+            key = key_entry.get('key')
+            key_text = self.key_to_string(key) if key else "N/A"
+            info_text = f"Action: {action_text} | Type: {key_type} | Key: {key_text}"
+
+        info_label = ctk.CTkLabel(
             item_frame,
-            text=key_type_text,
+            text=info_text,
             font=ctk.CTkFont(size=14),
-            width=100,
-            text_color=colors['accent']
+            text_color=colors['text'],
+            justify="left"
         )
-        key_type_label.pack(side="left", padx=5)
-        
-        key = key_entry['key']
-        key_text = key.char if hasattr(key, 'char') else key._name_ if hasattr(key, '_name_') else str(key)
-        key_label = ctk.CTkLabel(
-            item_frame,
-            text=key_text.upper(),
-            font=ctk.CTkFont(size=14, weight="bold"),
-            width=80,
-            text_color=colors['text']
-        )
-        key_label.pack(side="left", padx=5)
-        
-        delay_label = ctk.CTkLabel(
-            item_frame,
-            text=f"Delay: {key_entry['delay']} ms",
-            font=ctk.CTkFont(size=14),
-            width=120,
-            text_color=colors['text']
-        )
-        delay_label.pack(side="left", padx=5)
+        info_label.pack(side="left", padx=10, fill="x", expand=True)
         
         edit_button = NeumorphicButton(
             item_frame,
@@ -1209,7 +1229,7 @@ class AutoClicker:
             fg_color=colors['surface'],
             text_color=colors['text'],
             hover_color=colors['hover'],
-            command=lambda: self.edit_key_dialog(parent.winfo_toplevel(), index, refresh_callback)
+            command=lambda: self._show_event_dialog(parent, index, refresh_callback)
         )
         edit_button.pack(side="right", padx=(0, 5))
         
@@ -1234,446 +1254,181 @@ class AutoClicker:
         self.root.attributes('-topmost', True)
         self.root.lift()
     
-    def add_key_dialog(self, parent, callback=None):
+    def _show_event_dialog(self, parent, index=None, callback=None):
+        key_entry = self.custom_sequence[index] if index is not None else None
+        
         colors = self.get_colors()
         
         dialog = ctk.CTkToplevel(parent)
-        dialog.title("Add Key")
-        dialog.geometry("400x320")
-        dialog.minsize(400, 320)
-        dialog.resizable(True, True)
+        dialog.title("Edit Event" if key_entry else "Add Event")
+        dialog.geometry("450x400")
+        dialog.minsize(450, 400)
         dialog.attributes('-topmost', True)
         dialog.transient(parent)
         dialog.grab_set()
         dialog.configure(fg_color=colors['bg'])
         
-        dialog.update_idletasks()
-        width = dialog.winfo_width()
-        height = dialog.winfo_height()
-        x = (dialog.winfo_screenwidth() // 2) - (width // 2)
-        y = (dialog.winfo_screenheight() // 2) - (height // 2)
-        dialog.geometry('{}x{}+{}+{}'.format(width, height, x, y))
-        
         dialog_frame = NeumorphicFrame(dialog, fg_color=colors['bg'])
         dialog_frame.pack(fill="both", expand=True, padx=15, pady=15)
         
-        dialog_scroll = ctk.CTkScrollableFrame(dialog_frame.container, fg_color="transparent")
-        dialog_scroll.pack(fill="both", expand=True, padx=10, pady=10)
+        dialog_container = ctk.CTkFrame(dialog_frame.container, fg_color="transparent")
+        dialog_container.pack(fill="both", expand=True, padx=10, pady=10)
         
-        dialog_container = ctk.CTkFrame(dialog_scroll, fg_color="transparent")
-        dialog_container.pack(fill="both", expand=True)
-        
-        title_label = ctk.CTkLabel(
-            dialog_container, 
-            text="Add Key", 
-            font=ctk.CTkFont(size=18, weight="bold"),
-            text_color=colors['text']
-        )
+        title_text = f"Edit Event #{index+1}" if key_entry else "Add New Event to Sequence"
+        title_label = ctk.CTkLabel(dialog_container, text=title_text, font=ctk.CTkFont(size=18, weight="bold"), text_color=colors['text'])
         title_label.pack(pady=(0, 15))
+
+        # --- Define initial values and variables ---
+        initial_action = "Press"
+        initial_key_type = "Keyboard"
+        initial_duration = "10"
+        initial_key = None
+
+        if key_entry:
+            initial_action = key_entry.get('action', 'press').capitalize()
+            initial_key_type = (key_entry.get('key_type') or 'keyboard').capitalize()
+            initial_duration = str(key_entry.get('duration', 10))
+            initial_key = key_entry.get('key')
+
+        action_var = ctk.StringVar(value=initial_action)
+        key_type_var = ctk.StringVar(value=initial_key_type)
+        duration_var = ctk.StringVar(value=initial_duration)
+        selected_key = {'key_type': key_type_var.get().lower(), 'key': initial_key}
+
+        key_controls_frame = ctk.CTkFrame(dialog_container, fg_color="transparent")
+        duration_controls_frame = ctk.CTkFrame(dialog_container, fg_color="transparent")
+        key_select_frame = ctk.CTkFrame(key_controls_frame, fg_color="transparent")
+        key_display_text = self.key_to_string(selected_key['key']) if selected_key['key'] else "<Not Selected>"
+        key_display = ctk.CTkLabel(key_select_frame, text=key_display_text, font=ctk.CTkFont(size=14, weight="bold"), text_color=colors['accent'])
+        mouse_keys = {"Left": Button.left, "Right": Button.right, "Middle": Button.middle}
+        mouse_key_var = ctk.StringVar()
         
-        key_type_var = ctk.StringVar(value="keyboard")
-        
-        radio_frame = ctk.CTkFrame(dialog_container, fg_color="transparent")
-        radio_frame.pack(fill="x", pady=5)
-        
-        keyboard_radio = ctk.CTkRadioButton(
-            radio_frame,
-            text="Keyboard",
-            variable=key_type_var,
-            value="keyboard",
-            font=ctk.CTkFont(size=14),
-            fg_color=colors['accent'],
-            text_color=colors['text']
-        )
-        keyboard_radio.pack(anchor="w", pady=2)
-        
-        mouse_radio = ctk.CTkRadioButton(
-            radio_frame,
-            text="Mouse",
-            variable=key_type_var,
-            value="mouse",
-            font=ctk.CTkFont(size=14),
-            fg_color=colors['accent'],
-            text_color=colors['text']
-        )
-        mouse_radio.pack(anchor="w", pady=2)
-        
-        mouse_options_frame = ctk.CTkFrame(radio_frame, fg_color="transparent")
-        mouse_options_frame.pack(fill="x", padx=(20, 0), pady=(0, 5))
-        
-        mouse_button_var = ctk.StringVar(value="left")
-        mouse_options_label = ctk.CTkLabel(
-            mouse_options_frame,
-            text="Mouse Button:",
-            font=ctk.CTkFont(size=13),
-            text_color=colors['text'],
-            width=100
-        )
-        mouse_options_label.pack(side="left", padx=(0, 5))
-        
-        mouse_options = ctk.CTkOptionMenu(
-            mouse_options_frame,
-            values=["LMB", "RMB", "Wheel"],
-            font=ctk.CTkFont(size=13),
-            variable=mouse_button_var,
-            dropdown_font=ctk.CTkFont(size=13),
-            fg_color=colors['surface'],
-            button_color=colors['surface'],
-            button_hover_color=colors['hover'],
-            dropdown_fg_color=colors['surface'],
-            text_color=colors['text']
-        )
-        mouse_options.pack(side="left", fill="x", expand=True)
-        mouse_options.set("LMB")
-        
-        key_frame = ctk.CTkFrame(dialog_container, fg_color="transparent")
-        key_frame.pack(fill="x", pady=15)
-        
-        key_label = ctk.CTkLabel(
-            key_frame, 
-            text="Key:", 
-            font=ctk.CTkFont(size=14),
-            text_color=colors['text'],
-            width=80
-        )
-        key_label.pack(side="left")
-        
-        key_value_label = ctk.CTkLabel(
-            key_frame, 
-            text="Not selected", 
-            font=ctk.CTkFont(size=14, weight="bold"),
-            text_color=colors['accent']
-        )
-        key_value_label.pack(side="left", padx=10)
-        
-        select_key_button = NeumorphicButton(
-            key_frame,
-            text="Select",
-            font=ctk.CTkFont(size=14),
-            width=100,
-            height=30,
-            fg_color=colors['surface'],
-            text_color=colors['text'],
-            hover_color=colors['hover'],
-            command=lambda: select_key()
-        )
-        select_key_button.pack(side="right")
-        
-        selected_key = {'key': None, 'key_type': None}
-        
-        def update_key_visibility(*args):
-            key_type = key_type_var.get()
-            
-            if key_type == "mouse":
-                mouse_options_frame.pack(fill="x", padx=(20, 0), pady=(0, 5))
-                mouse_button = mouse_button_var.get()
-                from pynput.mouse import Button
-                
-                if mouse_button == "LMB":
-                    selected_key['key'] = Button.left
-                    key_value_label.configure(text="LEFT MOUSE BUTTON")
-                elif mouse_button == "RMB":
-                    selected_key['key'] = Button.right
-                    key_value_label.configure(text="RIGHT MOUSE BUTTON")
-                elif mouse_button == "Wheel":
-                    selected_key['key'] = Button.middle
-                    key_value_label.configure(text="MIDDLE MOUSE BUTTON (WHEEL)")
-                
-                selected_key['key_type'] = 'mouse'
-                key_frame.pack(fill="x", pady=15)
-                select_key_button.configure(state="disabled")
-            else:
-                mouse_options_frame.pack_forget()
-                
-                if key_type == "keyboard":
-                    key_frame.pack(fill="x", pady=15)
-                    key_value_label.configure(text="Not selected")
-                    select_key_button.configure(state="normal")
-                    selected_key['key'] = None
-                    selected_key['key_type'] = None
-        
-        key_type_var.trace_add("write", update_key_visibility)
-        mouse_button_var.trace_add("write", update_key_visibility)
-        
-        update_key_visibility()
-        
-        def select_key():
-            nonlocal selected_key
-            key_type = key_type_var.get()
-            
-            if key_type != "keyboard":
-                return
-            
-            select_key_button.configure(state="disabled")
-            keyboard_radio.configure(state="disabled")
-            mouse_radio.configure(state="disabled")
-            mouse_options.configure(state="disabled")
-            
-            key_indicator = ctk.CTkLabel(
-                dialog_container, 
-                text="Press a key...", 
-                font=ctk.CTkFont(size=14, slant="italic"),
-                text_color=colors['accent']
-            )
-            key_indicator.pack(pady=10)
+        # --- Define helper functions first ---
+        def select_key_from_dialog():
+            self.stop_keyboard_listener()
+            dialog.attributes('-topmost', False)
+            key_dialog, indicator = self.create_dialog("Select Key", "Press any key...")
             
             def on_key_press(key):
-                nonlocal selected_key
+                nonlocal listener
                 listener.stop()
-                
-                selected_key = {'key': key, 'key_type': 'keyboard'}
-                key_text = key.char if hasattr(key, 'char') else key._name_ if hasattr(key, '_name_') else str(key)
-                key_value_label.configure(text=key_text.upper())
-                
-                select_key_button.configure(state="normal")
-                keyboard_radio.configure(state="normal")
-                mouse_radio.configure(state="normal")
-                mouse_options.configure(state="normal")
-                
-                key_indicator.destroy()
-                return False
+                if key != kb.Key.esc:
+                    selected_key['key'] = key
+                    key_display.configure(text=self.key_to_string(key))
+                self.finish_key_binding(key_dialog)
+                dialog.attributes('-topmost', True)
+                dialog.lift()
             
             listener = kb.Listener(on_press=on_key_press)
             listener.start()
+
+        def on_mouse_key_select(choice):
+            selected_key['key'] = mouse_keys[choice]
+            key_display.configure(text=f"Mouse {choice}")
+
+        def update_key_options():
+            key_type = key_type_var.get().lower()
+            selected_key['key_type'] = key_type
+            if key_type == 'keyboard':
+                mouse_key_menu.pack_forget()
+                select_key_button.pack(side="left", padx=5)
+                key_display.pack(side="left", padx=5)
+            else: # Mouse
+                select_key_button.pack_forget()
+                key_display.pack_forget() # Hide old display
+                mouse_key_menu.pack(side="left", padx=5)
+                key_display.pack(side="left", padx=5) # Re-pack to ensure order
+                on_mouse_key_select(mouse_key_var.get())
+
+        def toggle_ui():
+            action = action_var.get()
+            if action == "Delay":
+                key_controls_frame.pack_forget()
+                duration_controls_frame.pack(fill="x", pady=10)
+            else: # Press or Release
+                duration_controls_frame.pack_forget()
+                key_controls_frame.pack(fill="x", pady=10)
+                update_key_options()
+
+        # --- Create UI elements ---
+        ctk.CTkLabel(dialog_container, text="Action:", font=ctk.CTkFont(size=14)).pack(anchor="w")
+        action_menu = ctk.CTkOptionMenu(dialog_container, variable=action_var, values=["Press", "Release", "Delay"], command=lambda v: toggle_ui())
+        action_menu.pack(fill="x", pady=(0,10))
         
-        delay_frame = ctk.CTkFrame(dialog_container, fg_color="transparent")
-        delay_frame.pack(fill="x", pady=15)
+        # --- Key Controls ---
+        ctk.CTkLabel(key_controls_frame, text="Key Type:", font=ctk.CTkFont(size=14)).pack(anchor="w")
+        key_type_menu = ctk.CTkOptionMenu(key_controls_frame, variable=key_type_var, values=["Keyboard", "Mouse"], command=lambda v: update_key_options())
+        key_type_menu.pack(fill="x", pady=(0,10))
         
-        delay_label = ctk.CTkLabel(
-            delay_frame, 
-            text="Delay (ms):", 
-            font=ctk.CTkFont(size=14),
-            text_color=colors['text'],
-            width=120
-        )
-        delay_label.pack(side="left")
+        key_select_frame.pack(fill="x", pady=5)
+        select_key_button = NeumorphicButton(key_select_frame, text="Select Key", command=select_key_from_dialog)
+
+        if selected_key['key'] in mouse_keys.values():
+            for name, btn in mouse_keys.items():
+                if btn == selected_key['key']:
+                    mouse_key_var.set(name)
+                    break
+        else:
+            mouse_key_var.set("Left")
+            if key_type_var.get() == 'Mouse':
+                selected_key['key'] = mouse_keys[mouse_key_var.get()]
+                key_display.configure(text=f"Mouse {mouse_key_var.get()}")
+                
+        mouse_key_menu = ctk.CTkOptionMenu(key_select_frame, variable=mouse_key_var, values=list(mouse_keys.keys()), command=on_mouse_key_select)
+
+        # --- Duration Controls ---
+        ctk.CTkLabel(duration_controls_frame, text="Duration (ms):", font=ctk.CTkFont(size=14)).pack(side="left")
+        duration_entry = ctk.CTkEntry(duration_controls_frame, textvariable=duration_var, width=100)
+        duration_entry.pack(side="left", padx=5)
+
+        toggle_ui() # Set initial state of the UI
         
-        delay_entry = ctk.CTkEntry(
-            delay_frame,
-            font=ctk.CTkFont(size=14),
-            width=100,
-            justify="right",
-            placeholder_text="10"
-        )
-        delay_entry.pack(side="left", padx=10)
-        delay_entry.insert(0, "10")
-        
-        ms_label = ctk.CTkLabel(
-            delay_frame, 
-            text="ms", 
-            font=ctk.CTkFont(size=14),
-            text_color=colors['text']
-        )
-        ms_label.pack(side="left")
-        
+        # --- Bottom buttons and save logic ---
         button_frame = ctk.CTkFrame(dialog_container, fg_color="transparent")
         button_frame.pack(fill="x", pady=(20, 0), side="bottom")
         
-        cancel_button = NeumorphicButton(
-            button_frame,
-            text="Cancel",
-            font=ctk.CTkFont(size=14),
-            width=100,
-            height=35,
-            fg_color=colors['surface'],
-            text_color=colors['text'],
-            hover_color=colors['hover'],
-            command=lambda: dialog.destroy()
-        )
+        cancel_button = NeumorphicButton(button_frame, text="Cancel", command=dialog.destroy)
         cancel_button.pack(side="left")
         
-        save_button = NeumorphicButton(
-            button_frame,
-            text="Save",
-            font=ctk.CTkFont(size=14),
-            width=100,
-            height=35,
-            fg_color=colors['surface'],
-            text_color=colors['accent'],
-            hover_color=colors['hover'],
-            command=lambda: save_key()
-        )
-        save_button.pack(side="right")
-        
-        def save_key():
-            try:
-                if selected_key['key'] is None:
-                    error_label = ctk.CTkLabel(
-                        dialog_container, 
-                        text="Error: Select a key!", 
-                        font=ctk.CTkFont(size=14),
-                        text_color=colors['danger']
-                    )
-                    error_label.pack(pady=5)
-                    dialog.after(2000, error_label.destroy)
-                    return
-                
-                delay = int(delay_entry.get())
-                if delay < 1:
-                    delay = 10
-                
-                self.add_custom_key(
-                    key_type=selected_key['key_type'],
-                    key=selected_key['key'],
-                    delay=delay
-                )
-                
-                dialog.destroy()
-                if callback:
-                    callback()
-            except ValueError:
-                error_label = ctk.CTkLabel(
-                    dialog_container, 
-                    text="Error: Enter a valid number for delay!", 
-                    font=ctk.CTkFont(size=14),
-                    text_color=colors['danger']
-                )
-                error_label.pack(pady=5)
-                dialog.after(2000, error_label.destroy)
-    
-    def edit_key_dialog(self, parent, index, callback=None):
-        if 0 <= index < len(self.custom_sequence):
-            key_entry = self.custom_sequence[index]
-            colors = self.get_colors()
+        def save_event():
+            action = action_var.get().lower()
+            event_data = {'action': action}
             
-            dialog = ctk.CTkToplevel(parent)
-            dialog.title("Edit Key")
-            dialog.geometry("400x300")
-            dialog.minsize(400, 300)
-            dialog.resizable(True, True)
-            dialog.attributes('-topmost', True)
-            dialog.transient(parent)
-            dialog.grab_set()
-            dialog.configure(fg_color=colors['bg'])
-            
-            dialog.update_idletasks()
-            width = dialog.winfo_width()
-            height = dialog.winfo_height()
-            x = (dialog.winfo_screenwidth() // 2) - (width // 2)
-            y = (dialog.winfo_screenheight() // 2) - (height // 2)
-            dialog.geometry('{}x{}+{}+{}'.format(width, height, x, y))
-            
-            dialog_frame = NeumorphicFrame(dialog, fg_color=colors['bg'])
-            dialog_frame.pack(fill="both", expand=True, padx=15, pady=15)
-            
-            dialog_scroll = ctk.CTkScrollableFrame(dialog_frame.container, fg_color="transparent")
-            dialog_scroll.pack(fill="both", expand=True, padx=10, pady=10)
-            
-            dialog_container = ctk.CTkFrame(dialog_scroll, fg_color="transparent")
-            dialog_container.pack(fill="both", expand=True)
-            
-            title_label = ctk.CTkLabel(
-                dialog_container, 
-                text=f"Edit Key #{index+1}", 
-                font=ctk.CTkFont(size=18, weight="bold"),
-                text_color=colors['text']
-            )
-            title_label.pack(pady=(0, 15))
-            
-            delay_frame = ctk.CTkFrame(dialog_container, fg_color="transparent")
-            delay_frame.pack(fill="x", pady=15)
-            
-            delay_label = ctk.CTkLabel(
-                delay_frame, 
-                text="Delay (ms):", 
-                font=ctk.CTkFont(size=14),
-                text_color=colors['text'],
-                width=120
-            )
-            delay_label.pack(side="left")
-            
-            delay_entry = ctk.CTkEntry(
-                delay_frame,
-                font=ctk.CTkFont(size=14),
-                width=100,
-                justify="right"
-            )
-            delay_entry.pack(side="left", padx=10)
-            delay_entry.insert(0, str(key_entry['delay']))
-            
-            ms_label = ctk.CTkLabel(
-                delay_frame, 
-                text="ms", 
-                font=ctk.CTkFont(size=14),
-                text_color=colors['text']
-            )
-            ms_label.pack(side="left")
-            
-            info_frame = ctk.CTkFrame(dialog_container, fg_color="transparent")
-            info_frame.pack(fill="x", pady=15)
-            
-            key_type = key_entry['key_type']
-            key_type_text = "Keyboard" if key_type == 'keyboard' else "Mouse"
-            
-            key = key_entry['key']
-            key_text = key.char if hasattr(key, 'char') else key._name_ if hasattr(key, '_name_') else str(key)
-            
-            info_label = ctk.CTkLabel(
-                info_frame, 
-                text=f"Type: {key_type_text}\nKey: {key_text.upper()}", 
-                font=ctk.CTkFont(size=14),
-                text_color=colors['text'],
-                justify="left"
-            )
-            info_label.pack(anchor="w")
-            
-            note_label = ctk.CTkLabel(
-                dialog_container, 
-                text="Note: To change the key, delete this one and add a new one.", 
-                font=ctk.CTkFont(size=12, slant="italic"),
-                text_color=colors['text']
-            )
-            note_label.pack(pady=10)
-            
-            button_frame = ctk.CTkFrame(dialog_container, fg_color="transparent")
-            button_frame.pack(fill="x", pady=(20, 0), side="bottom")
-            
-            cancel_button = NeumorphicButton(
-                button_frame,
-                text="Cancel",
-                font=ctk.CTkFont(size=14),
-                width=100,
-                height=35,
-                fg_color=colors['surface'],
-                text_color=colors['text'],
-                hover_color=colors['hover'],
-                command=lambda: dialog.destroy()
-            )
-            cancel_button.pack(side="left")
-            
-            save_button = NeumorphicButton(
-                button_frame,
-                text="Save",
-                font=ctk.CTkFont(size=14),
-                width=100,
-                height=35,
-                fg_color=colors['surface'],
-                text_color=colors['accent'],
-                hover_color=colors['hover'],
-                command=lambda: save_key()
-            )
-            save_button.pack(side="right")
-            
-            def save_key():
+            for w in dialog_container.winfo_children():
+                if isinstance(w, ctk.CTkLabel) and w.cget("text_color") == colors['danger']:
+                    w.destroy()
+
+            if action == 'delay':
                 try:
-                    delay = int(delay_entry.get())
-                    if delay < 1:
-                        delay = 10
-                    
-                    self.update_custom_key(index, delay=delay)
-                    
-                    dialog.destroy()
-                    if callback:
-                        callback()
+                    duration = int(duration_var.get())
+                    if duration < 1:
+                        duration = 1
+                    event_data['duration'] = duration
                 except ValueError:
-                    error_label = ctk.CTkLabel(
-                        dialog_container, 
-                        text="Error: Enter a valid number for delay!", 
-                        font=ctk.CTkFont(size=14),
-                        text_color=colors['danger']
-                    )
+                    error_label = ctk.CTkLabel(dialog_container, text="Error: Duration must be a valid number.", text_color=colors['danger'])
                     error_label.pack(pady=5)
-                    dialog.after(2000, error_label.destroy)
+                    dialog.after(3000, error_label.destroy)
+                    return
+            else: # press/release
+                if selected_key.get('key') is None:
+                    error_label = ctk.CTkLabel(dialog_container, text="Error: A key must be selected.", text_color=colors['danger'])
+                    error_label.pack(pady=5)
+                    dialog.after(3000, error_label.destroy)
+                    return
+                event_data['key_type'] = selected_key['key_type']
+                event_data['key'] = selected_key['key']
+            
+            if index is not None:
+                self.update_custom_key(index, event_data)
+            else:
+                self.add_custom_key(event_data)
+            
+            if callback:
+                callback()
+            dialog.destroy()
+
+        save_button = NeumorphicButton(button_frame, text="Save", command=save_event)
+        save_button.pack(side="right")
     
     def get_config_path(self):
         if getattr(sys, 'frozen', False):
@@ -1697,12 +1452,14 @@ class AutoClicker:
         }
         
         for entry in self.custom_sequence:
-            key_entry = {
-                'key_type': entry['key_type'],
-                'key': self.key_to_string(entry['key']),
-                'delay': entry['delay']
+            # New format saving
+            event_entry = {
+                'action': entry['action'],
+                'key_type': entry.get('key_type'),
+                'key': self.key_to_string(entry.get('key')) if entry.get('key') else None,
+                'duration': entry.get('duration')
             }
-            config['custom_sequence'].append(key_entry)
+            config['custom_sequence'].append(event_entry)
         
         try:
             with open(self.get_config_path(), 'w', encoding='utf-8') as f:
@@ -1734,16 +1491,41 @@ class AutoClicker:
             if 'custom_sequence' in config:
                 self.custom_sequence = []
                 for entry in config['custom_sequence']:
-                    key_entry = {
-                        'key_type': entry['key_type'],
-                        'key': self.string_to_key(entry['key']),
-                        'delay': entry['delay']
-                    }
-                    self.custom_sequence.append(key_entry)
+                    # Check if it's the new format or the old one for conversion
+                    if 'action' in entry: # New format
+                        key_entry = {
+                            'action': entry['action'],
+                            'key_type': entry.get('key_type'),
+                            'key': self.string_to_key(entry.get('key')) if entry.get('key') else None,
+                            'duration': entry.get('duration')
+                        }
+                        self.custom_sequence.append(key_entry)
+                    else: # Old format, needs conversion
+                        key = self.string_to_key(entry['key'])
+                        key_type = entry['key_type']
+                        action_type = entry.get('action_type', 'press')
+                        duration = entry.get('duration', entry.get('delay', 10))
+
+                        # 1. Press the key
+                        self.custom_sequence.append({'action': 'press', 'key_type': key_type, 'key': key})
+
+                        if action_type == 'hold':
+                            # 2. If hold, the duration is a delay between press and release
+                            self.custom_sequence.append({'action': 'delay', 'duration': duration})
+                        
+                        # 3. Release the key
+                        self.custom_sequence.append({'action': 'release', 'key_type': key_type, 'key': key})
+
+                        if action_type == 'press':
+                            # 4. If press, the duration is a delay *after* the release
+                            self.custom_sequence.append({'action': 'delay', 'duration': duration})
         except Exception as e:
             print(f"Ошибка при загрузке настроек: {e}")
     
     def string_to_key(self, key_str):
+        if key_str is None:
+            return None
+
         special_keys = {
             'F1': Key.f1, 'F2': Key.f2, 'F3': Key.f3, 'F4': Key.f4, 'F5': Key.f5,
             'F6': Key.f6, 'F7': Key.f7, 'F8': Key.f8, 'F9': Key.f9, 'F10': Key.f10,
